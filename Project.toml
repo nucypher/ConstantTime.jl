@@ -1,0 +1,13 @@
+name = "ConstantTime"
+uuid = "adc38e39-84cc-4087-89ab-f4eae76b2d15"
+authors = ["Bogdan Opanchuk <bogdan@opanchuk.net>"]
+version = "0.0.1"
+
+[compat]
+julia = "^1.0.0"
+
+[extras]
+Jute = "82bedeac-9837-5b62-883a-b5b3b7c811c5"
+
+[targets]
+test = ["Jute"]
