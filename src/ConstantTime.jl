@@ -21,8 +21,9 @@ end
 @inline wrap(x::T) where T = Value{T}(x)
 
 
-@inline unwrap(x::Value) = x.value
+@inline unwrap(x) = x
 
+@inline unwrap(x::Value) = x.value
 
 @inline unwrap(x::Choice) = !iszero(unwrap(x.value))
 
@@ -43,28 +44,49 @@ end
 end
 
 
-@inline function Base.xor(x::Value{T}, y::Value{T}) where T <: SUPPORTED_TYPES
+@inline Base.xor(x::Value{T}, y::Value{T}) where T <: SUPPORTED_TYPES =
     Value{T}(xor(x.value, y.value))
-end
+@inline Base.xor(x::Value{T}, y::T) where T <: SUPPORTED_TYPES =
+    Value{T}(xor(x.value, y))
+@inline Base.xor(x::T, y::Value{T}) where T <: SUPPORTED_TYPES =
+    Value{T}(xor(x, y.value))
 
 
-@inline function Base.:|(x::Value{T}, y::Value{T}) where T <: SUPPORTED_TYPES
+@inline Base.:|(x::Value{T}, y::Value{T}) where T <: SUPPORTED_TYPES =
     Value{T}(x.value | y.value)
-end
 
 
-@inline function Base.:&(x::Value{T}, y::Value{T}) where T <: SUPPORTED_TYPES
+@inline Base.:&(x::Value{T}, y::Value{T}) where T <: SUPPORTED_TYPES =
     Value{T}(x.value & y.value)
-end
+@inline Base.:&(x::Value{T}, y::T) where T <: SUPPORTED_TYPES =
+    Value{T}(x.value & y)
+@inline Base.:&(x::T, y::Value{T}) where T <: SUPPORTED_TYPES =
+    Value{T}(x & y.value)
 
 
-@inline function Base.:-(x::Value{T}) where T <: SUPPORTED_TYPES
-    Value{T}(-x.value)
-end
+@inline Base.:+(x::Value{T}, y::Value{T}) where T <: SUPPORTED_TYPES =
+    Value{T}(x.value + y.value)
+@inline Base.:+(x::Value{T}, y::T) where T <: SUPPORTED_TYPES =
+    Value{T}(x.value + y)
+@inline Base.:+(x::T, y::Value{T}) where T <: SUPPORTED_TYPES =
+    Value{T}(x + y.value)
 
+
+@inline Base.:-(x::Value{T}) where T <: SUPPORTED_TYPES = Value{T}(-x.value)
+@inline Base.:-(x::Value{T}, y::Value{T}) where T <: SUPPORTED_TYPES =
+    Value{T}(x.value - y.value)
+@inline Base.:-(x::Value{T}, y::T) where T <: SUPPORTED_TYPES =
+    Value{T}(x.value - y)
+@inline Base.:-(x::T, y::Value{T}) where T <: SUPPORTED_TYPES =
+    Value{T}(x - y.value)
 
 @inline function Base.:>>(x::Value{T}, shift::SUPPORTED_TYPES) where T <: SUPPORTED_TYPES
     Value{T}(x.value >> shift)
+end
+
+
+@inline function Base.:<<(x::Value{T}, shift::SUPPORTED_TYPES) where T <: SUPPORTED_TYPES
+    Value{T}(x.value << shift)
 end
 
 
@@ -85,6 +107,12 @@ end
 @inline Base.:!(x::Choice) = Choice(one(x.value) & ~x.value)
 
 
+@inline Base.iseven(x::Value{T}) where T <: SUPPORTED_TYPES = iszero(x & one(Value{T}))
+
+
+@inline Base.isodd(x::Value{T}) where T <: SUPPORTED_TYPES = !iseven(x)
+
+
 @inline function Base.iszero(x::Value{T}) where T <: SUPPORTED_TYPES
     # If x == 0, then x and -x are both equal to zero;
     # otherwise, one or both will have its high bit set.
@@ -102,6 +130,9 @@ end
 end
 
 
+@inline select(choice::Bool, x, y) = choice ? x : y
+
+
 @inline function select(choice::Choice, x::Value{T}, y::Value{T}) where T <: SUPPORTED_TYPES
     # if choice = 0, mask = (-0) = 0000...0000
     # if choice = 1, mask = (-1) = 1111...1111
@@ -110,12 +141,24 @@ end
 end
 
 
+@inline swap(choice::Bool, x, y) = choice ? (y, x) : (x, y)
+
+
 @inline function swap(choice::Choice, x::Value{T}, y::Value{T}) where T <: SUPPORTED_TYPES
     # if choice = 0, mask = (-0) = 0000...0000
     # if choice = 1, mask = (-1) = 1111...1111
     mask = -(choice.value % T)
     t = mask & xor(x, y)
     (xor(x, t), xor(y, t))
+end
+
+
+function Base.getindex(array::Array{V, 1}, x::Value{T}) where {T <: SUPPORTED_TYPES, V}
+    res = array[1]
+    for i in T(2):T(length(array))
+        res = select(wrap(i) == x, array[i], res)
+    end
+    res
 end
 
 
