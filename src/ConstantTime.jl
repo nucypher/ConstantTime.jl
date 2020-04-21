@@ -34,6 +34,13 @@ end
 """
 An object representing a result of a constant-time comparison,
 used in [`select`](@ref) and [`swap`](@ref).
+
+Supports `!`.
+
+!!! warning
+
+    Comparison of immutable objects with [`Value`](@ref) fields bypasses the custom `==`,
+    and the result is an unwrapped boolean.
 """
 struct Choice
     value :: Value{UInt8}
@@ -54,22 +61,25 @@ If `x` is a [`Value`](@ref), returns `x`, otherwise wraps `x` in a [`Value`](@re
 """
     unwrap(x)
     unwrap(x::Value)
-    unwrap(x::Choice)
-
 
 If `x` is a [`Value`](@ref), returns the wrapped value.
-If `x` is a [`Choice`](@ref), returns the wrapped boolean value.
 Otherwise, returns `x`.
-
-!!! note
-
-    Unwrapping of a [`Choice`](@ref) is not constant time.
 """
 @inline unwrap(x) = x
 
 @inline unwrap(x::Value) = x.value
 
-@inline unwrap(x::Choice) = !iszero(unwrap(x.value))
+
+"""
+    unwrap(x::Choice)
+
+Returns the wrapped boolean value.
+
+!!! note
+
+    Not constant-time.
+"""
+@inline unwrap_choice(x::Choice) = !iszero(unwrap(x.value))
 
 
 # Assuming that all these are constant time
@@ -133,7 +143,7 @@ end
     Value{T}(x.value >> shift.value)
 @inline Base.:>>(x::Value{T}, shift::SUPPORTED_TYPES) where T <: SUPPORTED_TYPES =
     Value{T}(x.value >> shift)
-@inline Base.:>>(x::SUPPORTED_TYPES, shift::Value{T}) where T <: SUPPORTED_TYPES =
+@inline Base.:>>(x::T, shift::Value{V}) where {T <: SUPPORTED_TYPES, V <: SUPPORTED_TYPES} =
     Value{T}(x >> shift.value)
 
 
@@ -141,12 +151,16 @@ end
     Value{T}(x.value << shift.value)
 @inline Base.:<<(x::Value{T}, shift::SUPPORTED_TYPES) where T <: SUPPORTED_TYPES =
     Value{T}(x.value << shift)
-@inline Base.:<<(x::SUPPORTED_TYPES, shift::Value{T}) where T <: SUPPORTED_TYPES =
+@inline Base.:<<(x::T, shift::Value{V}) where {T <: SUPPORTED_TYPES, V <: SUPPORTED_TYPES} =
     Value{T}(x << shift.value)
 
 
+@inline Base.:%(x::Value{T}, ::Type{Value{V}}) where {T <: SUPPORTED_TYPES, V <: SUPPORTED_TYPES} =
+    Value{V}(x.value % V)
 @inline Base.:%(x::Value{T}, ::Type{V}) where {T <: SUPPORTED_TYPES, V <: SUPPORTED_TYPES} =
     Value{V}(x.value % V)
+@inline Base.:%(x::T, ::Type{Value{V}}) where {T <: SUPPORTED_TYPES, V <: SUPPORTED_TYPES} =
+    Value{V}(x % V)
 
 
 @inline Base.signed(x::Value{T}) where T <: SUPPORTED_TYPES = Value(signed(x.value))
@@ -227,7 +241,7 @@ end
 
 
 """
-    getindex(array::Array{V, 1}, x::Value{T})
+    getindex(array::Array{Value, 1}, x::Value)
 
 Constant-time array access.
 
@@ -236,7 +250,7 @@ Constant-time array access.
     Assumes that index `x` is present in the array.
     If it is not, the first element will be returned.
 """
-function Base.getindex(array::Array{V, 1}, x::Value{T}) where {T <: SUPPORTED_TYPES, V}
+function Base.getindex(array::Array{V, 1}, x::Value{T}) where {T <: SUPPORTED_TYPES, V <: Value}
     res = array[1]
     for i in T(2):T(length(array))
         res = select(wrap(i) == x, array[i], res)
