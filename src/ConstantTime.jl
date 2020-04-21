@@ -5,6 +5,24 @@ module ConstantTime
 const SUPPORTED_TYPES = Union{Int8, Int16, Int32, Int64, Int128, UInt8, UInt16, UInt32, UInt64, UInt128}
 
 
+"""
+    Value{T}(value::T)
+    Value(value::T)
+
+A wrapper for a type `T` that protects it from being used in non-constant-time operations.
+
+This module defines some methods that are (most probably) constant-time.
+Namely, for built-in integer types (`Int8...128` and `UInt8...128`), the following methods
+are defined: `zero`, `one`, `~`, `+`, `-`, `xor`, `&`, `|`,
+`%` (with the second argument being a built-in integer type), `signed`, `unsigned`,
+`iseven`, `isodd`, `iszero`, `==`.
+Also, `>>` and `<<` are defined for the shift also being a built-in integer.
+
+The functions that would otherwise return `Bool`
+will return [`Choice`](@ref) for [`Value`](@ref) objects.
+
+Binary operations on one `Value` and one unwrapped value produce a `Value`.
+"""
 struct Value{T}
     value :: T
 
@@ -13,14 +31,40 @@ struct Value{T}
 end
 
 
+"""
+An object representing a result of a constant-time comparison,
+used in [`select`](@ref) and [`swap`](@ref).
+"""
 struct Choice
     value :: Value{UInt8}
 end
 
 
+"""
+    wrap(x)
+    wrap(x::Value)
+
+If `x` is a [`Value`](@ref), returns `x`, otherwise wraps `x` in a [`Value`](@ref).
+"""
 @inline wrap(x::T) where T = Value{T}(x)
 
+@inline wrap(x::Value) = x
 
+
+"""
+    unwrap(x)
+    unwrap(x::Value)
+    unwrap(x::Choice)
+
+
+If `x` is a [`Value`](@ref), returns the wrapped value.
+If `x` is a [`Choice`](@ref), returns the wrapped boolean value.
+Otherwise, returns `x`.
+
+!!! note
+
+    Unwrapping of a [`Choice`](@ref) is not constant time.
+"""
 @inline unwrap(x) = x
 
 @inline unwrap(x::Value) = x.value
@@ -54,6 +98,10 @@ end
 
 @inline Base.:|(x::Value{T}, y::Value{T}) where T <: SUPPORTED_TYPES =
     Value{T}(x.value | y.value)
+@inline Base.:|(x::Value{T}, y::T) where T <: SUPPORTED_TYPES =
+    Value{T}(x.value | y)
+@inline Base.:|(x::T, y::Value{T}) where T <: SUPPORTED_TYPES =
+    Value{T}(x | y.value)
 
 
 @inline Base.:&(x::Value{T}, y::Value{T}) where T <: SUPPORTED_TYPES =
@@ -80,19 +128,25 @@ end
 @inline Base.:-(x::T, y::Value{T}) where T <: SUPPORTED_TYPES =
     Value{T}(x - y.value)
 
-@inline function Base.:>>(x::Value{T}, shift::SUPPORTED_TYPES) where T <: SUPPORTED_TYPES
+
+@inline Base.:>>(x::Value{T}, shift::Value{V}) where {T <: SUPPORTED_TYPES, V <: SUPPORTED_TYPES} =
+    Value{T}(x.value >> shift.value)
+@inline Base.:>>(x::Value{T}, shift::SUPPORTED_TYPES) where T <: SUPPORTED_TYPES =
     Value{T}(x.value >> shift)
-end
+@inline Base.:>>(x::SUPPORTED_TYPES, shift::Value{T}) where T <: SUPPORTED_TYPES =
+    Value{T}(x >> shift.value)
 
 
-@inline function Base.:<<(x::Value{T}, shift::SUPPORTED_TYPES) where T <: SUPPORTED_TYPES
+@inline Base.:<<(x::Value{T}, shift::Value{V}) where {T <: SUPPORTED_TYPES, V <: SUPPORTED_TYPES} =
+    Value{T}(x.value << shift.value)
+@inline Base.:<<(x::Value{T}, shift::SUPPORTED_TYPES) where T <: SUPPORTED_TYPES =
     Value{T}(x.value << shift)
-end
+@inline Base.:<<(x::SUPPORTED_TYPES, shift::Value{T}) where T <: SUPPORTED_TYPES =
+    Value{T}(x << shift.value)
 
 
-@inline function Base.:%(x::Value{T}, ::Type{V}) where {T <: SUPPORTED_TYPES, V <: SUPPORTED_TYPES}
+@inline Base.:%(x::Value{T}, ::Type{V}) where {T <: SUPPORTED_TYPES, V <: SUPPORTED_TYPES} =
     Value{V}(x.value % V)
-end
 
 
 @inline Base.signed(x::Value{T}) where T <: SUPPORTED_TYPES = Value(signed(x.value))
@@ -130,6 +184,17 @@ end
 end
 
 
+"""
+    select(choice::Bool, x, y)
+    select(choice::Choice, x::Value{T}, y::Value{T})
+
+An analogue of a ternary operator or `ifelse`
+(which, at the moment, cannot have methods added to them).
+
+If `choice` is `true`, returns `x`, else `y`.
+For `choice` being a [`Choice`](@ref) object,
+and `x` and `y` being [`Value`](@ref) objects, the operation is constant-time.
+"""
 @inline select(choice::Bool, x, y) = choice ? x : y
 
 
@@ -141,6 +206,14 @@ end
 end
 
 
+"""
+    swap(choice::Bool, x, y)
+    swap(choice::Choice, x::Value{T}, y::Value{T})
+
+If `choice` is `true`, returns `(y, x)`, else `(x, y)`.
+For `choice` being a [`Choice`](@ref) object,
+and `x` and `y` being [`Value`](@ref) objects, the operation is constant-time.
+"""
 @inline swap(choice::Bool, x, y) = choice ? (y, x) : (x, y)
 
 
@@ -153,6 +226,16 @@ end
 end
 
 
+"""
+    getindex(array::Array{V, 1}, x::Value{T})
+
+Constant-time array access.
+
+!!! note
+
+    Assumes that index `x` is present in the array.
+    If it is not, the first element will be returned.
+"""
 function Base.getindex(array::Array{V, 1}, x::Value{T}) where {T <: SUPPORTED_TYPES, V}
     res = array[1]
     for i in T(2):T(length(array))
