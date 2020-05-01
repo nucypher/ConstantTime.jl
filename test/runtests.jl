@@ -150,10 +150,10 @@ end
 end
 
 
-@testcase "getindex()" begin
+@testcase "get()" begin
     arr = CT.wrap.([1, 2, 3, 4, 5])
-    @test CT.unwrap(arr[CT.wrap(2)]) == 2
-    @test CT.unwrap(arr[CT.wrap(4)]) == 4
+    @test CT.unwrap(get(arr, CT.wrap(2), CT.wrap(0))) == 2
+    @test CT.unwrap(get(arr, CT.wrap(6), CT.wrap(0))) == 0
 end
 
 

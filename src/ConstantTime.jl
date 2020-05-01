@@ -241,17 +241,14 @@ end
 
 
 """
-    getindex(array::Array{Value, 1}, x::Value)
+    get(array::Array{Value{V}, 1}, x::Value, default::Value{V}) where V <: Selectable
 
 Constant-time array access.
-
-!!! note
-
-    Assumes that index `x` is present in the array.
-    If it is not, the first element will be returned.
 """
-function Base.getindex(array::Array{V, 1}, x::Value{T}) where {T <: SUPPORTED_TYPES, V <: Value}
-    res = array[1]
+function Base.get(
+        array::Array{V, 1}, x::Value{T}, default::V
+        ) where {T <: SUPPORTED_TYPES, V <: Value{Q}} where Q <: SUPPORTED_TYPES
+    res = default
     for i in T(2):T(length(array))
         res = select(wrap(i) == x, array[i], res)
     end
