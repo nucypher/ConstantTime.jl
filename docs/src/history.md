@@ -1,7 +1,7 @@
 # Version history
 
 
-## Current development version
+## v0.1.1
 
 * CHANGED: `getindex()` changed to `get()`, since we need a default value to be provided.
 * ADDED: `Selectable` abstract type to restrict the usage of constant-time `get()`.
