@@ -1,6 +1,13 @@
 module ConstantTime
 
 
+"""
+An abstract type to mark types for which [`select`](@ref) is defined.
+Usually these will be compound user types containing several [`Value`](@ref) fields.
+"""
+abstract type Selectable end
+
+
 # Constant-sized built-in types
 const SUPPORTED_TYPES = Union{Int8, Int16, Int32, Int64, Int128, UInt8, UInt16, UInt32, UInt64, UInt128}
 
@@ -247,7 +254,7 @@ Constant-time array access.
 """
 function Base.get(
         array::Array{V, 1}, x::Value{T}, default::V
-        ) where {T <: SUPPORTED_TYPES, V <: Value{Q}} where Q <: SUPPORTED_TYPES
+        ) where {T <: SUPPORTED_TYPES, V <: Union{Selectable, Value{Q}}} where Q <: SUPPORTED_TYPES
     res = default
     for i in T(2):T(length(array))
         res = select(wrap(i) == x, array[i], res)

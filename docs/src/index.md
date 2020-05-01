@@ -14,6 +14,7 @@ CurrentModule = ConstantTime
 ```@docs
 Value
 Choice
+Selectable
 wrap
 unwrap
 ```
