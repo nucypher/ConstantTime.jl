@@ -38,6 +38,9 @@ struct Value{T}
 end
 
 
+Base.Broadcast.broadcastable(x::Value) = (x,)
+
+
 """
 An object representing a result of a constant-time comparison,
 used in [`select`](@ref) and [`swap`](@ref).
